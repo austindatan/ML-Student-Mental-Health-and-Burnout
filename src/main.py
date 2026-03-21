@@ -10,11 +10,10 @@ import os
 import warnings
 import textwrap
 import pandas as pd
-import numpy as np
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-import seaborn as sns
+import matplotlib.font_manager as fm
 from matplotlib.backends.backend_pdf import PdfPages
 
 from sklearn.model_selection import train_test_split
@@ -33,12 +32,9 @@ FONTS_DIR  = os.path.join(_BASE, "..", "fonts")
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 os.makedirs(REPORT_DIR, exist_ok=True)
 
-# Register DM Sans with matplotlib so it works without a system install
-import matplotlib.font_manager as fm
+# Register font
 for _ttf in ["DMSans-Regular.ttf", "DMSans-Bold.ttf", "DMSans-Italic.ttf"]:
-    _path = os.path.join(FONTS_DIR, _ttf)
-    if os.path.exists(_path):
-        fm.fontManager.addfont(_path)
+    fm.fontManager.addfont(os.path.join(FONTS_DIR, _ttf))
 
 plt.rcParams["font.family"] = "DM Sans"
 
@@ -48,14 +44,14 @@ def save(fig, filename):
 
 
 # =============================================================================
-# 1.  LOAD DATA
+# DATA
 # =============================================================================
 DATA_PATH = os.path.join(_BASE, "..", "data", "student_mental_health_burnout.csv")
 df = pd.read_csv(DATA_PATH)
 
 
 # =============================================================================
-# 2.  VISUALISE THE DATASET
+# VISUALISE THE DATASET
 # =============================================================================
 palette = ["#6C5CE7", "#00CEC9", "#FD7272"]
 order   = ["Low", "Medium", "High"]
@@ -117,20 +113,6 @@ ax.set_facecolor("#F8F9FA")
 plt.tight_layout()
 save(fig, "04_cgpa_vs_burnout.png")
 
-# Correlation heatmap — Pearson correlation between numerical features
-numerical_cols = ["age", "daily_study_hours", "daily_sleep_hours",
-                  "screen_time_hours", "anxiety_score", "depression_score",
-                  "academic_pressure_score", "financial_stress_score",
-                  "social_support_score", "physical_activity_hours",
-                  "attendance_percentage", "cgpa"]
-fig, ax = plt.subplots(figsize=(12, 8))
-corr = df[numerical_cols].corr()
-mask = np.triu(np.ones_like(corr, dtype=bool))
-sns.heatmap(corr, mask=mask, annot=True, fmt=".2f", cmap="coolwarm",
-            linewidths=0.5, ax=ax, annot_kws={"size": 8})
-ax.set_title("Correlation Heatmap – Numerical Features", fontsize=13, fontweight="bold")
-plt.tight_layout()
-save(fig, "05_correlation_heatmap.png")
 
 # Sleep hours by burnout level — overlapping histograms per class
 fig, ax = plt.subplots(figsize=(8, 4))
@@ -147,13 +129,10 @@ save(fig, "06_sleep_vs_burnout.png")
 
 
 # =============================================================================
-# 3.  DETERMINE X (FEATURES) AND Y (TARGET)
+# DETERMINE X (FEATURES) AND Y (TARGET)
 # =============================================================================
 # Y = burnout_level (what we predict) — 3 classes: Low, Medium, High
-# X = all other columns except student_id (non-predictive row identifier)
-#
-# Categorical features are Label-Encoded (string → integer) since all
-# sklearn models require numerical input.
+# X = all other columns except student_id
 
 df.drop(columns=["student_id"], inplace=True)
 
@@ -164,15 +143,15 @@ for col in categorical_cols:
     df[col] = le.fit_transform(df[col])
 
 target_col = "burnout_level"
-df[target_col] = le.fit_transform(df[target_col])   # High=0, Low=1, Medium=2
+df[target_col] = le.fit_transform(df[target_col]) # High=0, Low=1, Medium=2
 
 feature_cols = [c for c in df.columns if c != target_col]
-X = df[feature_cols]   # 18 input features
-y = df[target_col]     # target
+X = df[feature_cols] # 18 input features
+y = df[target_col] # target
 
 
 # =============================================================================
-# 4.  TRAIN / TEST SPLIT + FEATURE SCALING
+# TRAIN / TEST SPLIT
 # =============================================================================
 # 80/20 split; stratify=y keeps class proportions equal in both sets
 X_train, X_test, y_train, y_test = train_test_split(
@@ -185,11 +164,6 @@ X_train, X_test, y_train, y_test = train_test_split(
 scaler     = StandardScaler()
 X_train_sc = scaler.fit_transform(X_train)
 X_test_sc  = scaler.transform(X_test)
-
-
-# =============================================================================
-# 5.  FIT THE 4 MODELS
-# =============================================================================
 
 # Decision Tree — splits data on feature thresholds to form a decision tree
 # max_depth=10 limits tree size to prevent overfitting
@@ -215,10 +189,6 @@ lr_model = LogisticRegression(max_iter=500, random_state=42, n_jobs=-1)
 lr_model.fit(X_train_sc, y_train)
 lr_score = lr_model.score(X_test_sc, y_test)
 
-
-# =============================================================================
-# 6.  COMPARE ACCURACY OF THE 4 MODELS
-# =============================================================================
 # Accuracy = correct predictions / total predictions, evaluated on the test set
 results = {
     "Decision Tree"      : dt_score,
@@ -273,7 +243,7 @@ save(fig, "08_model_accuracy_line.png")
 
 
 # =============================================================================
-# 7.  GENERATE PDF REPORT
+# PDF REPORT
 # =============================================================================
 PDF_PATH = os.path.join(REPORT_DIR, "ML_Student_Mental_Health_Report.pdf")
 
@@ -307,30 +277,22 @@ chart_pages = [
      "between groups indicate that academic performance is a useful predictor. "
      "Overlap between groups is natural and is handled by multi-feature models."),
 
-    ("05_correlation_heatmap.png",
-     "Chart 5 – Correlation Heatmap",
-     "This heatmap shows the Pearson correlation coefficient between every pair of numerical features. "
-     "Values near +1 (dark red) indicate a strong positive relationship; values near -1 (dark blue) "
-     "indicate a strong negative relationship; values near 0 show little to no linear relationship. "
-     "High correlations between features (multicollinearity) can reduce the interpretability of "
-     "Logistic Regression coefficients but generally do not affect Decision Tree or Naïve Bayes accuracy."),
-
     ("06_sleep_vs_burnout.png",
-     "Chart 6 – Daily Sleep Hours by Burnout Level",
+     "Chart 5 – Daily Sleep Hours by Burnout Level",
      "These overlapping histograms compare the number of hours per day students sleep, grouped by "
      "burnout level. If students with High burnout consistently sleep fewer hours, sleep duration is "
      "a strong predictor. The overlap between distributions reflects real-world variability and is "
      "well handled by both probabilistic (Naïve Bayes) and distance-based (KNN) classifiers."),
 
     ("07_model_accuracy_comparison.png",
-     "Chart 7 – Model Accuracy Comparison (Bar Chart)",
+     "Chart 6 – Model Accuracy Comparison (Bar Chart)",
      "This bar chart provides a side-by-side comparison of the test-set accuracy achieved by each "
      "of the four trained models. Accuracy is the proportion of correctly classified samples out of "
      "all test samples (30,000 records). The dashed red line marks the best-performing model. "
      "Accuracy is a valid primary metric for this dataset given the roughly balanced class distribution."),
 
     ("08_model_accuracy_line.png",
-     "Chart 8 – Model Accuracy Comparison (Line Chart)",
+     "Chart 7 – Model Accuracy Comparison (Line Chart)",
      "This line chart presents the same accuracy values as Chart 7 but as a connected trend line, "
      "making relative differences between models easier to see at a glance. Each point is annotated "
      "with its exact accuracy score. A steeper slope between two adjacent models indicates a more "
@@ -475,8 +437,6 @@ with PdfPages(PDF_PATH) as pdf:
         "",
         f"Best performing model: {best_model}  ({results[best_model] * 100:.2f}%)",
         "",
-        "Accuracy is used as the sole evaluation metric. No classification reports or confusion matrices "
-        "are included in this analysis.",
     ])
 
     d = pdf.infodict()
