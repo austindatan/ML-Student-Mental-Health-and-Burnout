@@ -15,6 +15,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.font_manager as fm
 from matplotlib.backends.backend_pdf import PdfPages
+from matplotlib.patches import FancyBboxPatch
 
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder, StandardScaler
@@ -247,60 +248,106 @@ save(fig, "08_model_accuracy_line.png")
 # =============================================================================
 PDF_PATH = os.path.join(REPORT_DIR, "ML_Student_Mental_Health_Report.pdf")
 
+# Each entry: (image file, title, explanation text, code snippet lines)
 chart_pages = [
     ("01_target_distribution.png",
      "Chart 1 – Burnout Level Distribution",
      "This bar chart shows the number of students in each burnout category: Low, Medium, and High. "
      "Checking the class balance is the first step before training any classifier — a heavily skewed "
-     "distribution can cause models to favour the majority class. A roughly equal distribution, as seen here, "
-     "means the models can learn meaningful patterns for all three burnout levels."),
+     "distribution can cause models to favour the majority class. A roughly equal distribution "
+     "means the models can learn meaningful patterns for all three burnout levels.",
+     [
+         'counts = df["burnout_level"].value_counts().reindex(order)',
+         'bars = ax.bar(order, counts.values, color=palette, edgecolor="white", linewidth=1.5)',
+         'for bar, val in zip(bars, counts.values):',
+         '    ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 500,',
+         '            f"{val:,}", ha="center", va="bottom", fontsize=11, fontweight="bold")',
+         'ax.set_title("Distribution of Burnout Level (Target Variable)")',
+     ]),
 
     ("02_age_distribution.png",
      "Chart 2 – Age Distribution",
      "This histogram shows the age range of students in the dataset (17–25 years). "
      "The narrow range is expected for a university-level study population. "
-     "Age is kept as a feature because coping strategies and academic pressure tend to differ "
-     "as students progress through their studies, which may influence burnout outcomes."),
+     "Age is kept as a feature because coping strategies and academic pressure may differ "
+     "as students progress through their studies, which can influence burnout outcomes.",
+     [
+         'ax.hist(df["age"], bins=9, color="#6C5CE7", edgecolor="white", linewidth=1.3)',
+         'ax.set_title("Age Distribution of Students")',
+         'ax.set_xlabel("Age")',
+         'ax.set_ylabel("Frequency")',
+     ]),
 
     ("03_stress_vs_burnout.png",
      "Chart 3 – Stress Level vs Burnout Level",
      "This grouped bar chart crosses two categorical variables: self-reported stress level "
      "(Low / Medium / High) and burnout level. It visually tests whether students who report "
      "high stress are disproportionately represented in the High burnout group. "
-     "A strong visible pattern here confirms that stress level is a meaningful predictor for burnout."),
+     "A strong visible pattern confirms that stress level is a meaningful predictor for burnout.",
+     [
+         'ct = pd.crosstab(df["stress_level"], df["burnout_level"])[order]',
+         'ct.plot(kind="bar", ax=ax, color=palette, edgecolor="white", linewidth=1.2)',
+         'ax.set_title("Stress Level vs Burnout Level")',
+         'ax.legend(title="Burnout Level")',
+     ]),
 
     ("04_cgpa_vs_burnout.png",
      "Chart 4 – CGPA by Burnout Level",
      "These box plots compare the distribution of CGPA (Cumulative Grade Point Average) "
      "across the three burnout groups. The box spans the 25th to 75th percentile, the line "
      "inside is the median, and the whiskers cover the data range. Differences in median CGPA "
-     "between groups indicate that academic performance is a useful predictor. "
-     "Overlap between groups is natural and is handled by multi-feature models."),
+     "between groups indicate that academic performance is a useful predictor.",
+     [
+         'for i, (level, color) in enumerate(zip(order, palette)):',
+         '    data = df[df["burnout_level"] == level]["cgpa"]',
+         '    ax.boxplot(data, positions=[i], patch_artist=True, widths=0.5)',
+         'ax.set_title("CGPA Distribution by Burnout Level")',
+     ]),
 
     ("06_sleep_vs_burnout.png",
      "Chart 5 – Daily Sleep Hours by Burnout Level",
      "These overlapping histograms compare the number of hours per day students sleep, grouped by "
      "burnout level. If students with High burnout consistently sleep fewer hours, sleep duration is "
      "a strong predictor. The overlap between distributions reflects real-world variability and is "
-     "well handled by both probabilistic (Naïve Bayes) and distance-based (KNN) classifiers."),
+     "well handled by both probabilistic (Naïve Bayes) and distance-based (KNN) classifiers.",
+     [
+         'for level, color in zip(order, palette):',
+         '    data = df[df["burnout_level"] == level]["daily_sleep_hours"]',
+         '    ax.hist(data, bins=30, alpha=0.6, label=level, color=color)',
+         'ax.set_title("Daily Sleep Hours by Burnout Level")',
+         'ax.legend(title="Burnout Level")',
+     ]),
 
     ("07_model_accuracy_comparison.png",
      "Chart 6 – Model Accuracy Comparison (Bar Chart)",
      "This bar chart provides a side-by-side comparison of the test-set accuracy achieved by each "
      "of the four trained models. Accuracy is the proportion of correctly classified samples out of "
      "all test samples (30,000 records). The dashed red line marks the best-performing model. "
-     "Accuracy is a valid primary metric for this dataset given the roughly balanced class distribution."),
+     "Accuracy is a valid primary metric given the roughly balanced class distribution.",
+     [
+         'results = {"Decision Tree": dt_score, "Naive Bayes": nb_score,',
+         '           "KNN (k=5)": knn_score, "Logistic Regression": lr_score}',
+         'bars = ax.bar(results.keys(), results.values(), color=model_colors, width=0.5)',
+         'ax.axhline(y=max(results.values()), color="red", linestyle="--")',
+     ]),
 
     ("08_model_accuracy_line.png",
      "Chart 7 – Model Accuracy Comparison (Line Chart)",
-     "This line chart presents the same accuracy values as Chart 7 but as a connected trend line, "
+     "This line chart presents the same accuracy values as Chart 6 but as a connected trend line, "
      "making relative differences between models easier to see at a glance. Each point is annotated "
      "with its exact accuracy score. A steeper slope between two adjacent models indicates a more "
-     "significant performance difference."),
+     "significant performance difference.",
+     [
+         'ax.plot(list(results.keys()), list(results.values()),',
+         '        marker="o", markersize=10, linewidth=2.5, color="#6C5CE7")',
+         'for i, (name, acc) in enumerate(results.items()):',
+         '    ax.annotate(f"{acc:.4f}", xy=(i, acc), xytext=(0, 12),',
+         '                textcoords="offset points", ha="center")',
+     ]),
 ]
 
 
-def pdf_text_page(pdf, title, body_paragraphs):
+def pdf_text_page(pdf, title, body_paragraphs, code_lines=None):
     fig, ax = plt.subplots(figsize=(11, 8.5))
     fig.patch.set_facecolor("white")
     ax.axis("off")
@@ -326,6 +373,31 @@ def pdf_text_page(pdf, title, body_paragraphs):
                 color="#333333", va="top", linespacing=1.6)
         y_cursor -= LINE_H * line_count + PARA_GAP
 
+    # Render styled code block if code lines are provided
+    if code_lines:
+        y_cursor -= 0.050
+
+        CODE_LINE_H  = 0.037
+        code_block_h = CODE_LINE_H * len(code_lines) + 0.022
+
+        # Grey rounded background rectangle
+        rect = FancyBboxPatch(
+            (0.08, y_cursor - code_block_h + 0.010),
+            0.84, code_block_h,
+            transform=ax.transAxes,
+            boxstyle="round,pad=0.008",
+            facecolor="#F4F4F4", edgecolor="#DEDEDE", linewidth=0.8, zorder=0
+        )
+        ax.add_patch(rect)
+
+        # Code lines in monospace
+        y_code = y_cursor - 0.012
+        for line in code_lines:
+            ax.text(0.105, y_code, line,
+                    transform=ax.transAxes, fontsize=9,
+                    color="#1e1e1e", va="top", family="monospace", zorder=1)
+            y_code -= CODE_LINE_H
+
     pdf.savefig(fig, bbox_inches="tight")
     plt.close(fig)
 
@@ -346,7 +418,7 @@ with PdfPages(PDF_PATH) as pdf:
     ax.axhline(y=0.69, xmin=0.08, xmax=0.92, color="#EEEEEE", linewidth=1)
 
     rows = [
-        ("Dataset",         "student_mental_health_burnout.csv  ·  150,000 records  ·  20 features  ·  Source: Kaggle",    0.068),
+        ("Dataset",         "student_mental_health_burnout.csv  ·  150,000 records",    0.068),
         ("Target Variable", "burnout_level  (High / Medium / Low)  —  Multi-class Classification",                         0.068),
         ("Features (X)",    "age, CGPA, sleep hours, study hours, screen time, anxiety score, depression score,",           0.050),
         ("",                "academic pressure, financial stress, social support, physical activity, attendance,",           0.050),
@@ -373,7 +445,7 @@ with PdfPages(PDF_PATH) as pdf:
 
     # Dataset overview
     pdf_text_page(pdf, "1. Dataset Overview", [
-        "The dataset used in this analysis is the Student Mental Health & Burnout dataset sourced from Kaggle. "
+        "The dataset used in this analysis is the Student Mental Health & Burnout dataset sourced from Mansehaj Preet on Kaggle. "
         "It contains 150,000 student records across 20 columns, covering a mix of demographic, academic, and "
         "mental health variables. There are no missing values, and each row represents a unique student.",
         "",
@@ -386,30 +458,32 @@ with PdfPages(PDF_PATH) as pdf:
         "The dataset is well-suited for classification because it combines both types of variables, has a "
         "sufficiently large sample size (150,000 records), and contains a clearly defined target variable "
         "with three classes that reflect real-world burnout levels.",
+        "",
+        "Kaggle Link: http://bit.ly/4bKuJuX"
     ])
 
     # X and Y explanation
     pdf_text_page(pdf, "2. Determining X (Features) and Y (Target)", [
         "Y — Target Variable:",
         "burnout_level is the column the models are trained to predict. "
-        "It has three possible values: Low, Medium, and High — making this a multi-class classification problem. "
+        "It has three possible values: Low, Medium, and High, making this a multi-class classification problem. "
         "The target is Label-Encoded to integers (High = 0, Low = 1, Medium = 2) so scikit-learn can process it.",
         "",
         "X — Feature Variables:",
         "All remaining columns, after removing student_id (a row identifier with no predictive value), "
-        "are used as input features. This gives 18 features per student — a combination of raw numerical "
+        "are used as input features. This gives 18 features per student. A combination of raw numerical "
         "measurements and encoded categorical labels.",
         "",
         "Encoding & Scaling:",
         "Categorical columns (gender, course, year, stress_level, sleep_quality, internet_quality) are "
         "converted to integers via Label Encoding. For Decision Tree and Naïve Bayes, features are used "
-        "as-is — these algorithms are not affected by feature scale. For KNN and Logistic Regression, "
+        "as-is. These algorithms are not affected by feature scale. For KNN and Logistic Regression, "
         "all features are standardised using StandardScaler (mean = 0, standard deviation = 1) to ensure "
         "that features with larger numerical ranges do not dominate the model.",
     ])
 
-    # Chart pages + explanation pages
-    for fname, chart_title, explanation in chart_pages:
+    # Chart pages + explanation + code pages
+    for fname, chart_title, explanation, code in chart_pages:
         img_path = os.path.join(OUTPUT_DIR, fname)
         if not os.path.exists(img_path):
             continue
@@ -422,7 +496,7 @@ with PdfPages(PDF_PATH) as pdf:
                  fontsize=10, color="#777777", style="italic")
         pdf.savefig(fig, bbox_inches="tight")
         plt.close(fig)
-        pdf_text_page(pdf, chart_title, [explanation])
+        pdf_text_page(pdf, chart_title, [explanation], code_lines=code)
 
     # Accuracy summary
     pdf_text_page(pdf, "Model Accuracy Summary", [
